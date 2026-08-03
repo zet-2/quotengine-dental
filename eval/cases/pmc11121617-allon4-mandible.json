@@ -1,0 +1,12 @@
+{
+  "name": "pmc11121617-allon4-mandible",
+  "source": "Figure 2 pre-treatment orthopantomogram from ‘Rehabilitation of Edentulous Arch Using All-on-Four Treatment Protocol: A Case Report,’ Grazina Fernandes, Meena Aras, Vidya Chitre, Ivy Coutinho and Kennedy Mascarenhas, https://pmc.ncbi.nlm.nih.gov/articles/PMC11121617/. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Image reproduced unchanged. Reported plan: extraction of remaining teeth, four mandibular implants with a fixed full-arch prosthesis, and a maxillary complete denture.",
+  "intake": {
+    "freeText": "Molti dei miei denti si muovono e altri mancano, vorrei una soluzione duratura e fissa.",
+    "language": "it",
+    "images": [
+      { "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/pmc11121617-allon4-mandible.jpg" }
+    ]
+  },
+  "expected": { "treatmentCategories": ["crowns", "implants"], "implantCount": 4 }
+}

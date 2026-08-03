@@ -1,0 +1,1074 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Quotengine Dental Lead API",
+    "version": "4.0.0",
+    "description": "Creates an encrypted dental-practice lead and returns an immediate, non-binding indicative estimate without a pre-delivery clinical review. Results use either constrained vision items or a versioned synthetic demo scenario selected by the patient. Every estimate still requires in-person clinical confirmation.",
+    "license": { "name": "MIT", "identifier": "MIT" }
+  },
+  "servers": [
+    {
+      "url": "https://api.example.invalid",
+      "description": "Replace with the configured Cloudflare Worker custom domain"
+    },
+    {
+      "url": "https://quotengine-demo-api-staging.example.workers.dev",
+      "description": "Illustrative staging server; staging additionally requires X-Staging-Key"
+    }
+  ],
+  "tags": [
+    { "name": "Public funnel", "description": "Browser-facing configuration and lead capture" },
+    { "name": "Lead self-service", "description": "Bearer-token status, withdrawal and erasure" },
+    { "name": "Clinic admin", "description": "Protected clinic follow-up and radiograph access" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Check runtime and storage health",
+        "operationId": "healthCheck",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Bindings, runtime configuration and database schema are available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status", "service"],
+                  "properties": {
+                    "status": { "const": "ok" },
+                    "service": { "const": "quotengine-api" }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/config": {
+      "get": {
+        "tags": ["Public funnel"],
+        "summary": "Get funnel and consent configuration",
+        "operationId": "getFunnelConfig",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Current consent-copy hashes, upload limits and Turnstile configuration",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FunnelConfig" }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Error" },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/leads": {
+      "post": {
+        "tags": ["Public funnel"],
+        "summary": "Create a lead and generate an immediate indicative estimate",
+        "operationId": "createLeadAndEstimate",
+        "security": [{ "turnstileToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/StagingKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "fullName",
+                  "phone",
+                  "email",
+                  "contactPreference",
+                  "language",
+                  "healthDataConsent",
+                  "radiographStorageConsent",
+                  "consentVersion",
+                  "consentTextSha256",
+                  "privacyNoticeSha256"
+                ],
+                "properties": {
+                  "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+                  "phone": {
+                    "type": "string",
+                    "minLength": 7,
+                    "maxLength": 32,
+                    "pattern": "^(?=(?:\\D*\\d){7,}\\D*$)\\+?[0-9() .-]+$"
+                  },
+                  "email": { "type": "string", "format": "email", "maxLength": 254 },
+                  "contactPreference": {
+                    "type": "string",
+                    "enum": ["whatsapp", "phone", "email"]
+                  },
+                  "treatmentGoal": {
+                    "allOf": [{ "$ref": "#/components/schemas/PatientTreatmentGoal" }],
+                    "default": "unsure",
+                    "description": "Patient-declared goal. Omitted legacy submissions default to unsure."
+                  },
+                  "targetArea": {
+                    "allOf": [{ "$ref": "#/components/schemas/PatientTargetArea" }],
+                    "default": "both",
+                    "description": "Patient-declared treatment area. Omitted legacy submissions default to both."
+                  },
+                  "message": { "type": "string", "maxLength": 2000, "default": "" },
+                  "language": { "type": "string", "enum": ["it", "sq", "en"] },
+                  "healthDataConsent": { "type": "string", "const": "true" },
+                  "radiographStorageConsent": {
+                    "type": "string",
+                    "enum": ["true", "false"],
+                    "description": "Must be false when no image is uploaded."
+                  },
+                  "consentVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "consentTextSha256": { "$ref": "#/components/schemas/Sha256" },
+                  "privacyNoticeSha256": { "$ref": "#/components/schemas/Sha256" },
+                  "utmSource": { "type": "string", "maxLength": 200 },
+                  "utmMedium": { "type": "string", "maxLength": 200 },
+                  "utmCampaign": { "type": "string", "maxLength": 200 },
+                  "utmTerm": { "type": "string", "maxLength": 200 },
+                  "utmContent": { "type": "string", "maxLength": 200 },
+                  "landingPath": { "type": "string", "pattern": "^/(?!/)", "maxLength": 500 },
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "One JPEG or PNG panoramic radiograph, maximum 6 MiB; required unless treatmentGoal is fixed_full_arch. A full-arch demo estimate does not use the image. The complete multipart request is limited to 7 MiB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay of a completed lead submission.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateLeadResponse" }
+              }
+            }
+          },
+          "201": {
+            "description": "Lead created. The result is present for estimate_ready and null for follow_up_required.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateLeadResponse" }
+              }
+            }
+          },
+          "202": {
+            "description": "A concurrent idempotent submission is still processing; poll the status endpoint.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProcessingLeadResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "413": { "$ref": "#/components/responses/Error" },
+          "422": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" },
+          "502": { "$ref": "#/components/responses/Error" },
+          "500": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/leads/{id}/status": {
+      "get": {
+        "tags": ["Lead self-service"],
+        "summary": "Retrieve a lead and its patient-facing result",
+        "operationId": "getLeadStatus",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/LeadId" }],
+        "responses": {
+          "200": {
+            "description": "Lead status and the persisted constrained result when ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["lead", "result"],
+                  "properties": {
+                    "lead": { "$ref": "#/components/schemas/PublicLead" },
+                    "result": {
+                      "anyOf": [
+                        { "$ref": "#/components/schemas/IndicativeEstimate" },
+                        { "type": "null" }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/leads/{id}/radiograph": {
+      "delete": {
+        "tags": ["Lead self-service"],
+        "summary": "Withdraw optional radiograph storage",
+        "operationId": "withdrawRadiographStorage",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/LeadId" }],
+        "responses": {
+          "204": { "description": "Optional R2 storage withdrawn; lead retained" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/leads/{id}": {
+      "delete": {
+        "tags": ["Lead self-service"],
+        "summary": "Delete active lead and radiograph data",
+        "operationId": "deleteLead",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/LeadId" }],
+        "responses": {
+          "204": { "description": "Active D1 and R2 data deleted" },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/leads": {
+      "get": {
+        "tags": ["Clinic admin"],
+        "summary": "List leads for clinic follow-up",
+        "operationId": "listLeads",
+        "security": [{ "bearerAuth": [], "cloudflareAccess": [] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20, "default": 10 } },
+          { "name": "before", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated lead summaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["leads"],
+                  "properties": {
+                    "leads": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AdminLeadSummary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/leads/{id}": {
+      "get": {
+        "tags": ["Clinic admin"],
+        "summary": "Read one decrypted lead",
+        "operationId": "getAdminLead",
+        "security": [{ "bearerAuth": [], "cloudflareAccess": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/LeadId" }],
+        "responses": {
+          "200": {
+            "description": "Decrypted contact, attribution, estimate and reproducibility metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["lead"],
+                  "properties": {
+                    "lead": { "$ref": "#/components/schemas/AdminLead" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/admin/leads/{id}/radiograph": {
+      "get": {
+        "tags": ["Clinic admin"],
+        "summary": "Download a private stored radiograph",
+        "operationId": "downloadAdminRadiograph",
+        "security": [{ "bearerAuth": [], "cloudflareAccess": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/LeadId" }],
+        "responses": {
+          "200": {
+            "description": "Private sanitized radiograph stream",
+            "content": {
+              "image/jpeg": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Error" },
+          "403": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" },
+      "turnstileToken": { "type": "apiKey", "in": "header", "name": "X-Turnstile-Token" },
+      "cloudflareAccess": { "type": "apiKey", "in": "header", "name": "Cf-Access-Jwt-Assertion" }
+    },
+    "parameters": {
+      "LeadId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "A cryptographically random UUID v4, reused only when retrying the exact same form submission and its Turnstile Siteverify request. Reuse with different normalized fields or any image processed for inference or storage returns 409. An image attached to fixed_full_arch with radiographStorageConsent=false is intentionally ignored and is not fingerprinted.",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        }
+      },
+      "StagingKey": {
+        "name": "X-Staging-Key",
+        "in": "header",
+        "required": false,
+        "description": "Required only by the non-public staging deployment; never sent to production.",
+        "schema": { "type": "string", "minLength": 32 }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Structured error without internal details",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+      "PatientTreatmentGoal": {
+        "type": "string",
+        "enum": ["replace_few_teeth", "restore_teeth", "improve_smile", "fixed_full_arch", "existing_plan", "unsure"]
+      },
+      "PatientTargetArea": {
+        "type": "string",
+        "enum": ["upper", "lower", "both"]
+      },
+      "PatientDentalIntent": {
+        "type": "object",
+        "required": ["treatmentGoal", "targetArea"],
+        "properties": {
+          "treatmentGoal": { "$ref": "#/components/schemas/PatientTreatmentGoal" },
+          "targetArea": { "$ref": "#/components/schemas/PatientTargetArea" }
+        }
+      },
+      "LeadStatus": {
+        "type": "string",
+        "enum": ["received", "estimate_ready", "processing_failed"]
+      },
+      "ConsentRecord": {
+        "type": "object",
+        "required": [
+          "version",
+          "capturedAt",
+          "radiographStorageGranted",
+          "radiographStorageActive",
+          "radiographStorageWithdrawnAt",
+          "textSha256",
+          "privacyNoticeUrl",
+          "privacyNoticeSha256"
+        ],
+        "properties": {
+          "version": { "type": "string" },
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "radiographStorageGranted": { "type": "boolean" },
+          "radiographStorageActive": { "type": "boolean" },
+          "radiographStorageWithdrawnAt": {
+            "anyOf": [
+              { "type": "string", "format": "date-time" },
+              { "type": "null" }
+            ]
+          },
+          "textSha256": { "$ref": "#/components/schemas/Sha256" },
+          "privacyNoticeUrl": { "type": "string", "format": "uri" },
+          "privacyNoticeSha256": { "$ref": "#/components/schemas/Sha256" }
+        }
+      },
+      "PublicLead": {
+        "type": "object",
+        "required": ["id", "status", "language", "createdAt", "updatedAt", "expiresAt", "hasStoredRadiograph", "consent"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": { "$ref": "#/components/schemas/LeadStatus" },
+          "language": { "type": "string", "enum": ["it", "sq", "en"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "hasStoredRadiograph": { "type": "boolean" },
+          "consent": { "$ref": "#/components/schemas/ConsentRecord" }
+        }
+      },
+      "FunnelConfig": {
+        "type": "object",
+        "required": ["consentVersion", "consentTextSha256", "privacyNoticeSha256", "privacyNoticeUrl", "dataRetentionDays", "acceptedImageTypes", "maxMultipartBodyBytes", "turnstile", "idempotencyHeader", "treatmentGoals", "targetAreas", "demoCommercialCatalog"],
+        "properties": {
+          "consentVersion": { "type": "string" },
+          "consentTextSha256": { "$ref": "#/components/schemas/LocalizedSha256" },
+          "privacyNoticeSha256": { "$ref": "#/components/schemas/LocalizedSha256" },
+          "privacyNoticeUrl": { "type": "string", "format": "uri" },
+          "dataRetentionDays": { "type": "integer", "minimum": 1 },
+          "acceptedImageTypes": {
+            "type": "array",
+            "prefixItems": [{ "const": "image/jpeg" }, { "const": "image/png" }],
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "maxMultipartBodyBytes": { "type": "integer", "const": 7340032 },
+          "turnstile": {
+            "type": "object",
+            "required": ["siteKey", "action", "tokenHeader"],
+            "properties": {
+              "siteKey": { "type": "string" },
+              "action": { "type": "string" },
+              "tokenHeader": { "const": "X-Turnstile-Token" }
+            }
+          },
+          "idempotencyHeader": { "const": "Idempotency-Key" },
+          "treatmentGoals": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PatientTreatmentGoal" },
+            "minItems": 6,
+            "maxItems": 6
+          },
+          "targetAreas": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PatientTargetArea" },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "demoCommercialCatalog": {
+            "type": "object",
+            "required": ["version", "status"],
+            "properties": {
+              "version": { "type": "string" },
+              "status": { "const": "synthetic_demo_catalog" }
+            }
+          }
+        }
+      },
+      "LocalizedSha256": {
+        "type": "object",
+        "required": ["it", "sq", "en"],
+        "properties": {
+          "it": { "$ref": "#/components/schemas/Sha256" },
+          "sq": { "$ref": "#/components/schemas/Sha256" },
+          "en": { "$ref": "#/components/schemas/Sha256" }
+        }
+      },
+      "AdminLeadSummary": {
+        "allOf": [
+          { "$ref": "#/components/schemas/PublicLead" },
+          {
+            "type": "object",
+            "required": ["fullName", "phone", "email", "contactPreference", "intent"],
+            "properties": {
+              "fullName": { "type": "string" },
+              "phone": { "type": "string" },
+              "email": {
+                "anyOf": [
+                  { "type": "string", "format": "email" },
+                  { "const": "" }
+                ]
+              },
+              "contactPreference": { "type": "string", "enum": ["whatsapp", "phone", "email"] },
+              "intent": {
+                "anyOf": [
+                  { "$ref": "#/components/schemas/PatientDentalIntent" },
+                  { "type": "null" }
+                ],
+                "description": "Null only for legacy leads created before structured intent capture."
+              }
+            }
+          }
+        ]
+      },
+      "LeadAttribution": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string" },
+          "medium": { "type": "string" },
+          "campaign": { "type": "string" },
+          "term": { "type": "string" },
+          "content": { "type": "string" },
+          "landingPath": { "type": "string", "pattern": "^/(?!/)" }
+        }
+      },
+      "ArchFinding": {
+        "type": "object",
+        "required": ["arch", "observation", "confidence"],
+        "properties": {
+          "arch": { "type": "string", "enum": ["upper", "lower"] },
+          "observation": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+        }
+      },
+      "CandidateTreatment": {
+        "type": "object",
+        "required": ["itemId", "quantity", "arch", "rationale", "needsConfirmation"],
+        "properties": {
+          "itemId": { "type": "string", "minLength": 1 },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 32 },
+          "arch": { "type": "string", "enum": ["upper", "lower"] },
+          "rationale": { "type": "string", "minLength": 1 },
+          "needsConfirmation": { "const": true }
+        }
+      },
+      "StoredCandidateTreatment": {
+        "type": "object",
+        "description": "Compatibility shape for encrypted historical results. New assessments always use CandidateTreatment and require arch; pre-tool-v3 rows can omit it.",
+        "required": ["itemId", "quantity", "rationale", "needsConfirmation"],
+        "properties": {
+          "itemId": { "type": "string", "minLength": 1 },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 32 },
+          "arch": {
+            "anyOf": [
+              { "type": "string", "enum": ["upper", "lower"] },
+              { "type": "null" }
+            ]
+          },
+          "rationale": { "type": "string", "minLength": 1 },
+          "needsConfirmation": { "const": true }
+        }
+      },
+      "ExistingRestoration": {
+        "type": "object",
+        "required": ["type", "count"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["implant", "crown", "bridge", "post", "denture", "other"]
+          },
+          "arch": { "type": "string", "enum": ["upper", "lower"] },
+          "count": { "type": "integer", "minimum": 1, "maximum": 32 },
+          "note": { "type": "string" }
+        }
+      },
+      "DentalAssessment": {
+        "type": "object",
+        "required": [
+          "archFindings",
+          "candidateTreatments",
+          "imageQuality",
+          "overallConfidence",
+          "requiresClinicalConfirmation"
+        ],
+        "properties": {
+          "archFindings": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ArchFinding" }
+          },
+          "candidateTreatments": {
+            "type": "array",
+            "maxItems": 32,
+            "items": { "$ref": "#/components/schemas/CandidateTreatment" }
+          },
+          "existingRestorations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ExistingRestoration" }
+          },
+          "imageQuality": { "type": "string", "enum": ["good", "fair", "poor"] },
+          "overallConfidence": { "type": "string", "enum": ["low", "medium", "high"] },
+          "requiresClinicalConfirmation": { "const": true },
+          "notes": { "type": "string" }
+        }
+      },
+      "StoredDentalAssessment": {
+        "description": "Assessment returned by admin storage APIs, including compatibility with encrypted pre-tool-v3 candidates whose arch was absent.",
+        "anyOf": [
+          { "$ref": "#/components/schemas/DentalAssessment" },
+          {
+            "type": "object",
+            "required": [
+              "archFindings",
+              "candidateTreatments",
+              "imageQuality",
+              "overallConfidence",
+              "requiresClinicalConfirmation"
+            ],
+            "properties": {
+              "archFindings": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ArchFinding" }
+              },
+              "candidateTreatments": {
+                "type": "array",
+                "maxItems": 32,
+                "items": { "$ref": "#/components/schemas/StoredCandidateTreatment" }
+              },
+              "existingRestorations": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/ExistingRestoration" }
+              },
+              "imageQuality": { "type": "string", "enum": ["good", "fair", "poor"] },
+              "overallConfidence": { "type": "string", "enum": ["low", "medium", "high"] },
+              "requiresClinicalConfirmation": { "const": true },
+              "notes": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "AppliedModifier": {
+        "type": "object",
+        "required": ["id", "label", "type", "value", "amount"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "type": { "type": "string", "enum": ["percentage", "flat"] },
+          "value": { "type": "number" },
+          "amount": { "type": "number" }
+        }
+      },
+      "QuoteLineItem": {
+        "type": "object",
+        "required": ["itemId", "label", "quantity", "unitPrice", "laborHoursPerUnit", "lineTotal"],
+        "properties": {
+          "itemId": { "type": "string" },
+          "label": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unitPrice": { "type": "number" },
+          "laborHoursPerUnit": { "type": "number" },
+          "lineTotal": { "type": "number" }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "required": [
+          "clientId",
+          "language",
+          "currency",
+          "lineItems",
+          "subtotal",
+          "labor",
+          "fees",
+          "modifiersApplied",
+          "modifiersTotal",
+          "markup",
+          "tax",
+          "total",
+          "generatedAt"
+        ],
+        "properties": {
+          "clientId": { "type": "string" },
+          "language": { "type": "string", "enum": ["it", "sq", "en"] },
+          "currency": { "type": "string" },
+          "lineItems": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/QuoteLineItem" }
+          },
+          "subtotal": { "type": "number" },
+          "labor": { "type": "number" },
+          "fees": { "type": "number" },
+          "modifiersApplied": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AppliedModifier" }
+          },
+          "modifiersTotal": { "type": "number" },
+          "markup": { "type": "number" },
+          "tax": { "type": "number" },
+          "total": { "type": "number" },
+          "generatedAt": { "type": "string", "format": "date-time" },
+          "notes": { "type": "string" }
+        }
+      },
+      "PatientQuoteLineItem": {
+        "type": "object",
+        "required": ["label", "quantity", "unitPrice", "lineTotal"],
+        "properties": {
+          "label": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unitPrice": { "type": "number" },
+          "lineTotal": { "type": "number" }
+        }
+      },
+      "PatientAppliedModifier": {
+        "type": "object",
+        "required": ["label", "type", "value", "amount"],
+        "properties": {
+          "label": { "type": "string" },
+          "type": { "type": "string", "enum": ["percentage", "flat"] },
+          "value": { "type": "number" },
+          "amount": { "type": "number" }
+        }
+      },
+      "PatientQuote": {
+        "type": "object",
+        "description": "Public quote projection with internal client, item and modifier identifiers removed.",
+        "required": ["language", "currency", "lineItems", "subtotal", "labor", "fees", "modifiersApplied", "modifiersTotal", "markup", "tax", "total", "generatedAt"],
+        "properties": {
+          "language": { "type": "string", "enum": ["it", "sq", "en"] },
+          "currency": { "type": "string" },
+          "lineItems": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PatientQuoteLineItem" }
+          },
+          "subtotal": { "type": "number" },
+          "labor": { "type": "number" },
+          "fees": { "type": "number" },
+          "modifiersApplied": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PatientAppliedModifier" }
+          },
+          "modifiersTotal": { "type": "number" },
+          "markup": { "type": "number" },
+          "tax": { "type": "number" },
+          "total": { "type": "number" },
+          "generatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RenderedQuoteLineItem": {
+        "type": "object",
+        "required": ["itemId", "label", "quantity", "unitPrice", "lineTotal"],
+        "properties": {
+          "itemId": { "type": "string" },
+          "label": { "type": "string" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "unitPrice": { "type": "number" },
+          "lineTotal": { "type": "number" }
+        }
+      },
+      "RenderedQuote": {
+        "type": "object",
+        "required": ["clientId", "language", "currency", "generatedAt", "lineItems", "summary", "notes"],
+        "properties": {
+          "clientId": { "type": "string" },
+          "language": { "type": "string", "enum": ["it", "sq", "en"] },
+          "currency": { "type": "string" },
+          "generatedAt": { "type": "string", "format": "date-time" },
+          "lineItems": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RenderedQuoteLineItem" }
+          },
+          "summary": {
+            "type": "object",
+            "required": ["subtotal", "labor", "fees", "modifiers", "modifiersTotal", "markup", "tax", "total"],
+            "properties": {
+              "subtotal": { "type": "number" },
+              "labor": { "type": "number" },
+              "fees": { "type": "number" },
+              "modifiers": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/AppliedModifier" }
+              },
+              "modifiersTotal": { "type": "number" },
+              "markup": { "type": "number" },
+              "tax": { "type": "number" },
+              "total": { "type": "number" }
+            }
+          },
+          "notes": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "PriceRange": {
+        "type": "object",
+        "required": ["implantRange", "totalRange"],
+        "properties": {
+          "implantRange": { "$ref": "#/components/schemas/CountRange" },
+          "totalRange": { "$ref": "#/components/schemas/MoneyRange" }
+        }
+      },
+      "CountRange": {
+        "type": "object",
+        "required": ["low", "high"],
+        "properties": {
+          "low": { "type": "integer", "minimum": 1, "maximum": 32 },
+          "high": { "type": "integer", "minimum": 1, "maximum": 32 }
+        }
+      },
+      "MoneyRange": {
+        "type": "object",
+        "required": ["low", "high"],
+        "properties": {
+          "low": { "type": "number" },
+          "high": { "type": "number" }
+        }
+      },
+      "CommercialEstimate": {
+        "type": "object",
+        "required": ["scenarioId", "catalogVersion", "pricingStatus", "catalogScope", "targetArea", "archCount", "currency", "unit", "unitRange", "totalRange", "terms"],
+        "properties": {
+          "scenarioId": { "const": "fixed-full-arch-standard" },
+          "catalogVersion": { "type": "string" },
+          "pricingStatus": { "const": "synthetic_demo_catalog" },
+          "catalogScope": { "const": "example_dental_practice" },
+          "targetArea": { "$ref": "#/components/schemas/PatientTargetArea" },
+          "archCount": { "type": "integer", "enum": [1, 2] },
+          "currency": { "const": "EUR" },
+          "unit": { "const": "per_arch" },
+          "unitRange": { "$ref": "#/components/schemas/MoneyRange" },
+          "totalRange": { "$ref": "#/components/schemas/MoneyRange" },
+          "terms": { "$ref": "#/components/schemas/CommercialEstimateTerms" }
+        }
+      },
+      "CommercialEstimateTerms": {
+        "type": "object",
+        "required": ["basis", "inclusions", "assumptions", "exclusions", "tax", "validity"],
+        "properties": {
+          "basis": { "const": "synthetic_demo_catalog_not_clinic_price" },
+          "inclusions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "assumptions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "exclusions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "tax": {
+            "type": "object",
+            "required": ["status", "note"],
+            "properties": {
+              "status": { "const": "not_confirmed" },
+              "note": { "type": "string" }
+            }
+          },
+          "validity": {
+            "type": "object",
+            "required": ["status", "note"],
+            "properties": {
+              "status": { "const": "temporary_until_clinic_catalog_approval" },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      },
+      "StoredDentalResult": {
+        "type": "object",
+        "required": ["resultBasis", "assessment", "requiresClinicalConfirmation", "disclaimer", "consultationOnly", "quote", "text", "json", "priceRange", "commercialEstimate"],
+        "properties": {
+          "resultBasis": { "type": "string", "enum": ["vision_items", "commercial_scenario"] },
+          "assessment": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/StoredDentalAssessment" },
+              { "type": "null" }
+            ]
+          },
+          "requiresClinicalConfirmation": { "const": true },
+          "disclaimer": { "type": "string" },
+          "consultationOnly": { "type": "boolean" },
+          "quote": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/Quote" },
+              { "type": "null" }
+            ]
+          },
+          "text": { "type": ["string", "null"] },
+          "json": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/RenderedQuote" },
+              { "type": "null" }
+            ]
+          },
+          "priceRange": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/PriceRange" },
+              { "type": "null" }
+            ]
+          },
+          "commercialEstimate": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/CommercialEstimate" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "ModelMetadata": {
+        "type": "object",
+        "required": ["model", "pipelineVersion", "promptVersion", "toolSchemaVersion", "kbVersion"],
+        "properties": {
+          "model": { "type": "string" },
+          "pipelineVersion": { "type": "string" },
+          "promptVersion": { "type": "string" },
+          "toolSchemaVersion": { "type": "string" },
+          "kbVersion": { "type": "string" }
+        }
+      },
+      "AdminLead": {
+        "allOf": [
+          { "$ref": "#/components/schemas/AdminLeadSummary" },
+          {
+            "type": "object",
+            "required": ["message", "attribution", "result", "modelMetadata"],
+            "properties": {
+              "message": { "type": "string" },
+              "attribution": { "$ref": "#/components/schemas/LeadAttribution" },
+              "result": {
+                "anyOf": [
+                  { "$ref": "#/components/schemas/StoredDentalResult" },
+                  { "type": "null" }
+                ]
+              },
+              "modelMetadata": { "$ref": "#/components/schemas/ModelMetadata" },
+              "legacyClinicalReview": {
+                "type": "object",
+                "required": ["decision", "reviewer", "reviewedAt"],
+                "properties": {
+                  "decision": { "type": "string", "enum": ["approved", "rejected"] },
+                  "reviewer": { "type": "string" },
+                  "reviewedAt": { "type": "string", "format": "date-time" },
+                  "note": { "type": "string" }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "IndicativeEstimate": {
+        "type": "object",
+        "required": ["estimateKind", "resultBasis", "targetArea", "consultationOnly", "requiresInPersonConfirmation", "disclaimer", "quote", "text", "priceRange", "commercialEstimate"],
+        "properties": {
+          "estimateKind": { "const": "indicative_non_binding" },
+          "resultBasis": { "type": "string", "enum": ["vision_items", "commercial_scenario"] },
+          "targetArea": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/PatientTargetArea" },
+              { "type": "null" }
+            ],
+            "description": "Patient-declared pricing scope; null only for legacy leads without structured intent."
+          },
+          "consultationOnly": { "type": "boolean" },
+          "requiresInPersonConfirmation": { "const": true },
+          "disclaimer": { "type": "string" },
+          "quote": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/PatientQuote" },
+              { "type": "null" }
+            ]
+          },
+          "text": { "type": "null", "description": "Internal formatter text is never exposed on patient-facing responses." },
+          "priceRange": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/PriceRange" },
+              { "type": "null" }
+            ]
+          },
+          "commercialEstimate": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/CommercialEstimate" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "CreateLeadResponse": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": ["lead", "leadAccessToken", "outcome", "result", "message"],
+            "properties": {
+              "leadAccessToken": { "type": "string", "minLength": 32, "readOnly": true },
+              "message": { "type": "string" }
+            }
+          },
+          {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "lead": {
+                    "allOf": [
+                      { "$ref": "#/components/schemas/PublicLead" },
+                      { "type": "object", "properties": { "status": { "const": "estimate_ready" } } }
+                    ]
+                  },
+                  "outcome": { "const": "estimate_ready" },
+                  "result": { "$ref": "#/components/schemas/IndicativeEstimate" }
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "lead": {
+                    "allOf": [
+                      { "$ref": "#/components/schemas/PublicLead" },
+                      { "type": "object", "properties": { "status": { "const": "processing_failed" } } }
+                    ]
+                  },
+                  "outcome": { "const": "follow_up_required" },
+                  "result": { "type": "null" }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "ProcessingLeadResponse": {
+        "type": "object",
+        "required": ["lead", "leadAccessToken", "outcome", "result", "message"],
+        "properties": {
+          "lead": {
+            "allOf": [
+              { "$ref": "#/components/schemas/PublicLead" },
+              { "type": "object", "properties": { "status": { "const": "received" } } }
+            ]
+          },
+          "leadAccessToken": { "type": "string", "minLength": 32, "readOnly": true },
+          "outcome": { "const": "processing" },
+          "result": { "type": "null" },
+          "message": { "type": "string" }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

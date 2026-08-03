@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["@cloudflare/vitest-pool-workers/types", "node", "vitest/globals"]
+  },
+  "include": [
+    "./**/*.ts",
+    "../../src/worker/**/*.ts",
+    "../../worker-configuration.d.ts",
+    "../../vitest.worker.config.ts"
+  ]
+}

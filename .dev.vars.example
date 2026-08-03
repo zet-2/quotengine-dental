@@ -1,0 +1,10 @@
+# Local-only values for `npm run worker:dev`.
+# Copy to .dev.vars and replace every value. Never commit .dev.vars.
+ADMIN_API_KEY=replace-with-at-least-32-random-characters
+ANTHROPIC_API_KEY=replace-with-your-commercial-api-key
+# Generate with: openssl rand -base64 32
+DATA_ENCRYPTION_KEY=replace-with-a-base64-encoded-32-byte-key
+# Required by every staging lead submission; send it as X-Staging-Key.
+STAGING_API_KEY=replace-with-at-least-32-random-characters
+# Cloudflare documented always-pass test secret. Production must use the widget secret.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA

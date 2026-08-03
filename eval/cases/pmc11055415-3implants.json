@@ -1,0 +1,12 @@
+{
+  "name": "pmc11055415-3implants",
+  "source": "Figure 3 initial panoramic radiograph from ‘Management of an Implant-Supported Fixed Partial Denture in the Esthetic Zone in a Patient With a Very Limited Mouth Opening: A Case Report,’ Frederic Silvestri, Thomas Stephan, Charlotte Mansuy and Chloë Mense, https://pmc.ncbi.nlm.nih.gov/articles/PMC11055415/. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Image reproduced unchanged. Reported plan: three implants at sites 12, 22 and 23 with an implant-supported fixed partial denture, plus one extraction.",
+  "intake": {
+    "freeText": "Mi mancano alcuni denti davanti in alto, quali sono le opzioni?",
+    "language": "it",
+    "images": [
+      { "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/pmc11055415-3implants.jpg" }
+    ]
+  },
+  "expected": { "treatmentCategories": ["crowns", "implants"], "implantCount": 3 }
+}

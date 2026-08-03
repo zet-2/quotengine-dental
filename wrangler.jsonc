@@ -1,0 +1,151 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "quotengine-demo-api-staging",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-07-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": true,
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "triggers": {
+    "crons": ["17 * * * *"]
+  },
+  "vars": {
+    "ENVIRONMENT": "staging",
+    "ACCESS_AUD": "disabled-in-staging",
+    "ACCESS_TEAM_DOMAIN": "disabled-in-staging",
+    "ALLOWED_ORIGINS": "http://localhost:4321,http://localhost:5173",
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+    "COMMERCIAL_CATALOG_APPROVED_ID": "not-approved-staging",
+    "CONSENT_TEXT_SHA256": {
+      "it": "0000000000000000000000000000000000000000000000000000000000000001",
+      "sq": "0000000000000000000000000000000000000000000000000000000000000002",
+      "en": "0000000000000000000000000000000000000000000000000000000000000003"
+    },
+    "CONSENT_VERSION": "draft-2026-07-13",
+    "DATA_RETENTION_DAYS": "30",
+    "AUDIT_RETENTION_DAYS": "365",
+    "PRIVACY_NOTICE_URL": "https://replace-me.invalid/privacy",
+    "PRIVACY_NOTICE_SHA256": {
+      "it": "0000000000000000000000000000000000000000000000000000000000000011",
+      "sq": "0000000000000000000000000000000000000000000000000000000000000012",
+      "en": "0000000000000000000000000000000000000000000000000000000000000013"
+    },
+    "TURNSTILE_EXPECTED_ACTION": "dental_quote",
+    "TURNSTILE_EXPECTED_HOSTNAME": "localhost",
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
+  },
+  "secrets": {
+    "required": [
+      "ADMIN_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "DATA_ENCRYPTION_KEY",
+      "STAGING_API_KEY",
+      "TURNSTILE_SECRET_KEY"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "LEADS_DB",
+      "database_name": "quotengine-demo-leads-staging",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "RADIOGRAPHS",
+      "bucket_name": "quotengine-demo-radiographs-staging",
+      "jurisdiction": "eu"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+  "ratelimits": [
+    {
+      "name": "SUBMISSION_IP_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "SUBMISSION_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ],
+  "env": {
+    "production": {
+      "name": "quotengine-demo-api-production",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ACCESS_AUD": "replace-me",
+        "ACCESS_TEAM_DOMAIN": "replace-me.cloudflareaccess.com",
+        "ALLOWED_ORIGINS": "https://replace-me.invalid",
+        "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+        "COMMERCIAL_CATALOG_APPROVED_ID": "replace-me",
+        "CONSENT_TEXT_SHA256": {
+          "it": "replace-me",
+          "sq": "replace-me",
+          "en": "replace-me"
+        },
+        "CONSENT_VERSION": "replace-me",
+        "DATA_RETENTION_DAYS": "30",
+        "AUDIT_RETENTION_DAYS": "365",
+        "PRIVACY_NOTICE_URL": "https://replace-me.invalid/privacy",
+        "PRIVACY_NOTICE_SHA256": {
+          "it": "replace-me",
+          "sq": "replace-me",
+          "en": "replace-me"
+        },
+        "TURNSTILE_EXPECTED_ACTION": "dental_quote",
+        "TURNSTILE_EXPECTED_HOSTNAME": "replace-me.invalid",
+        "TURNSTILE_SITE_KEY": "replace-me"
+      },
+      "secrets": {
+        "required": [
+          "ADMIN_API_KEY",
+          "ANTHROPIC_API_KEY",
+          "DATA_ENCRYPTION_KEY",
+          "TURNSTILE_SECRET_KEY"
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "LEADS_DB",
+          "database_name": "quotengine-demo-leads-production",
+          "database_id": "00000000-0000-4000-8000-000000000002",
+          "migrations_dir": "./migrations"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "RADIOGRAPHS",
+          "bucket_name": "quotengine-demo-radiographs-production",
+          "jurisdiction": "eu"
+        }
+      ],
+      "images": {
+        "binding": "IMAGES"
+      },
+      "ratelimits": [
+        {
+          "name": "SUBMISSION_IP_RATE_LIMITER",
+          "namespace_id": "1003",
+          "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "SUBMISSION_RATE_LIMITER",
+          "namespace_id": "1004",
+          "simple": { "limit": 5, "period": 60 }
+        }
+      ]
+    }
+  }
+}

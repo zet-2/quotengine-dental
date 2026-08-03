@@ -1,0 +1,53 @@
+{
+  "name": "quotengine-dental",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Config-driven dental estimate engine with guarded multimodal intake, deterministic TypeScript pricing, privacy controls, and evaluation tooling",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "quote": "tsx src/cli.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc",
+    "start:prod": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "eval:dental": "tsx src/eval/cli.ts",
+    "eval:dental:live": "node --env-file=.env --import tsx src/eval/cli.ts",
+    "dental:smoke": "node --env-file=.env --import tsx src/dental/smoke.ts",
+    "dental:demo": "node --env-file=.env --import tsx src/dental/server.ts",
+    "worker:dev": "wrangler dev",
+    "worker:types": "wrangler types",
+    "worker:types:check": "wrangler types --check",
+    "worker:test": "vitest run --config vitest.worker.config.ts",
+    "worker:test:types": "tsc -p test/worker/tsconfig.json --noEmit",
+    "catalog:validate": "tsx scripts/validate-commercial-catalog.ts",
+    "worker:validate:staging": "npm run catalog:validate && node scripts/validate-worker-config.mjs staging",
+    "worker:validate:production": "npm run catalog:validate && node scripts/validate-worker-config.mjs production",
+    "worker:migrate:staging": "wrangler d1 migrations apply LEADS_DB --remote --env=\"\"",
+    "worker:migrate:production": "wrangler d1 migrations apply LEADS_DB --remote --env production",
+    "worker:dry-run": "wrangler deploy --dry-run --env \"\" --outdir dist-worker",
+    "worker:dry-run:production": "wrangler deploy --dry-run --env production --outdir dist-worker-production",
+    "worker:deploy:staging": "npm run worker:validate:staging && npm run worker:migrate:staging && wrangler deploy --env \"\"",
+    "worker:deploy:production": "npm run worker:validate:production && npm run worker:migrate:production && wrangler deploy --env production"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "hono": "^4.12.30",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
+    "@types/node": "^24.13.3",
+    "@vitest/coverage-v8": "^4.1.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.118.0"
+  }
+}

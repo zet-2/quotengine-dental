@@ -1,0 +1,10 @@
+{
+  "name": "PMC8607803-deep-bite-worn-opg",
+  "source": "Figure 4 initial panoramic radiograph from ‘Rehabilitation of a deep bite patient with worn dentition using minimally invasive approach: A 3-year follow-up,’ Mahya Hasanzade, Safoura Ghodsi and Negin Yaghoobi, https://pmc.ncbi.nlm.nih.gov/articles/PMC8607803/. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Image reproduced unchanged. Reported plan: ceramic occlusal overlays on mandibular posterior teeth, porcelain-fused-to-zirconia crowns and lithium-disilicate laminates anteriorly, plus two fixed partial dentures for missing maxillary teeth; no implants.",
+  "intake": {
+    "freeText": "My teeth are very worn and short, especially the front ones, and I have a deep bite. I also have some gaps where teeth are missing in the upper jaw. I'd like to restore my smile and be able to chew properly — what options do I have?",
+    "language": "en",
+    "images": [{ "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/PMC8607803-deep-bite-worn-opg.jpg" }]
+  },
+  "expected": { "treatmentCategories": ["crowns", "veneers"], "implantCount": 0 }
+}

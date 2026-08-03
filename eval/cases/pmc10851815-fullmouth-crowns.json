@@ -1,0 +1,12 @@
+{
+  "name": "pmc10851815-fullmouth-crowns",
+  "source": "Figure 3 pre-treatment panoramic radiograph from ‘Full Mouth Rehabilitation for a Patient With Generalized Attrition: The Hobo Technique in Action,’ Lisa Debbarma and Vineet Sharma, https://pmc.ncbi.nlm.nih.gov/articles/PMC10851815/. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Image reproduced unchanged. Reported plan: full-mouth crowns and 15 root-canal treatments; no implants; teeth 14 and 27 missing.",
+  "intake": {
+    "freeText": "Ho i denti molto consumati e rovinati, cosa si può fare per sistemarli?",
+    "language": "it",
+    "images": [
+      { "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/pmc10851815-fullmouth-crowns.jpg" }
+    ]
+  },
+  "expected": { "treatmentCategories": ["crowns"], "implantCount": 0 }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "PMC3517200-worn-dentition-opg",
+  "source": "Figure 1(b) pre-treatment panoramic radiograph from ‘Prosthodontic Rehabilitation of a Bruxer Patient with Severely Worn Dentition: A Clinical Case Report,’ Farhang Mahboub, Elnaz Moslehi Fard, Farideh Geramipanah and Habib Hajimiragha, https://pmc.ncbi.nlm.nih.gov/articles/PMC3517200/. Licensed CC BY 3.0: https://creativecommons.org/licenses/by/3.0/. Image reproduced unchanged. Reported plan: full-mouth metal-ceramic crowns on all remaining natural teeth plus a mandibular Kennedy class II removable partial denture, with cast gold posts/cores on endodontically treated teeth; no implants.",
+  "intake": {
+    "freeText": "I have very worn down teeth — they look really short and my bite feels collapsed. I also have some missing back teeth on the lower jaw. Everything is sensitive and I am embarrassed to smile. What can be done to fix my teeth?",
+    "language": "en",
+    "images": [{ "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/PMC3517200-worn-dentition-opg.jpg" }]
+  },
+  "expected": { "treatmentCategories": ["crowns"], "implantCount": 0 }
+}

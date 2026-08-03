@@ -1,0 +1,10 @@
+{
+  "name": "PMC6018135-amelogenesis-imperfecta-opg",
+  "source": "Figure 4 pre-treatment panoramic radiograph from ‘An Interdisciplinary Approach for Hypoplastic Amelogenesis Imperfecta: A Case Report,’ Gulfem Ergun and Ayse Seda Ataol, https://pmc.ncbi.nlm.nih.gov/articles/PMC6018135/. Licensed CC BY 4.0: https://creativecommons.org/licenses/by/4.0/. Image reproduced unchanged. Reported plan: full-mouth fixed rehabilitation with zirconia-based ceramic crowns anteriorly and metal-ceramic fixed partial dentures posteriorly, plus periodontal crown lengthening and increased vertical dimension; no implants.",
+  "intake": {
+    "freeText": "Ho i denti con lo smalto quasi assente, sono tutti macchiati e molto sensibili. Alcuni denti posteriori hanno già lo smalto completamente consumato. Vorrei rifare tutti i denti per migliorare la funzione e l'estetica — cosa si può fare?",
+    "language": "it",
+    "images": [{ "kind": "panoramic_xray", "mediaType": "image/jpeg", "path": "images/PMC6018135-amelogenesis-imperfecta-opg.jpg" }]
+  },
+  "expected": { "treatmentCategories": ["crowns"], "implantCount": 0 }
+}
