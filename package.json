@@ -37,7 +37,7 @@
     "worker:deploy:production": "npm run worker:validate:production && npm run worker:migrate:production && wrangler deploy --env production"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@anthropic-ai/sdk": "^0.115.0",
     "hono": "^4.12.30",
     "zod": "^3.25.76"
   },
